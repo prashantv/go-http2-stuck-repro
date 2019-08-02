@@ -1,0 +1,12 @@
+package: github.com/prashantv/go-bug-28634-repro
+import:
+- package: golang.org/x/net
+  version: master
+  subpackages:
+  - context
+testImport:
+- package: github.com/stretchr/testify
+  version: ^1.2.2
+  subpackages:
+  - assert
+  - require
