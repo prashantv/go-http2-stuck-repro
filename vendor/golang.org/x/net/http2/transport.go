@@ -53,6 +53,25 @@ const (
 	defaultUserAgent = "Go-http-client/2.0"
 )
 
+type fakeMutex struct {
+	mu     sync.Mutex
+	locked int32
+}
+
+func (m *fakeMutex) Locked() bool {
+	return atomic.LoadInt32(&m.locked) > 0
+}
+
+func (m *fakeMutex) Lock() {
+	atomic.StoreInt32(&m.locked, 1)
+	m.mu.Lock()
+}
+
+func (m *fakeMutex) Unlock() {
+	atomic.StoreInt32(&m.locked, 0)
+	m.mu.Unlock()
+}
+
 // Transport is an HTTP/2 Transport.
 //
 // A Transport internally caches connections to servers. It is safe
@@ -210,7 +229,7 @@ type ClientConn struct {
 	idleTimeout time.Duration // or 0 for never
 	idleTimer   *time.Timer
 
-	mu              sync.Mutex // guards following
+	mu              fakeMutex  // guards following
 	cond            *sync.Cond // hold mu; broadcast on flow/closed changes
 	flow            flow       // our conn-level flow control quota (cs.flow is per stream)
 	inflow          flow       // peer's conn-level flow control
@@ -715,6 +734,10 @@ type clientConnIdleState struct {
 }
 
 func (cc *ClientConn) idleState() clientConnIdleState {
+	if cc.mu.Locked() {
+		return clientConnIdleState{false, false}
+	}
+
 	cc.mu.Lock()
 	defer cc.mu.Unlock()
 	return cc.idleStateLocked()
