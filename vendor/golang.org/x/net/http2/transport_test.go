@@ -1639,7 +1639,7 @@ func TestTransportChecksRequestHeaderListSize(t *testing.T) {
 		if err != nil {
 			t.Fatalf("headerListSizeForRequest: %v", err)
 		}
-		cc := &ClientConn{peerMaxHeaderListSize: 0xffffffffffffffff}
+		cc := &ClientConn{peerMaxHeaderListSize: 0xffffffffffffffff, mu: newTryMutex()}
 		cc.henc = hpack.NewEncoder(&cc.hbuf)
 		cc.mu.Lock()
 		hdrs, err := cc.encodeHeaders(req, true, trailers, contentLen)
@@ -3099,7 +3099,7 @@ func TestTransportRequestPathPseudo(t *testing.T) {
 		},
 	}
 	for i, tt := range tests {
-		cc := &ClientConn{peerMaxHeaderListSize: 0xffffffffffffffff}
+		cc := &ClientConn{peerMaxHeaderListSize: 0xffffffffffffffff, mu: newTryMutex()}
 		cc.henc = hpack.NewEncoder(&cc.hbuf)
 		cc.mu.Lock()
 		hdrs, err := cc.encodeHeaders(tt.req, false, "", -1)
@@ -3133,6 +3133,7 @@ func TestRoundTripDoesntConsumeRequestBodyEarly(t *testing.T) {
 	req, _ := http.NewRequest("POST", "http://foo.com/", ioutil.NopCloser(strings.NewReader(body)))
 	cc := &ClientConn{
 		closed: true,
+		mu:     newTryMutex(),
 	}
 	_, err := cc.RoundTrip(req)
 	if err != errClientConnUnusable {

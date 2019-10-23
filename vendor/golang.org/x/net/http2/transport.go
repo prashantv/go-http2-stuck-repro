@@ -53,25 +53,6 @@ const (
 	defaultUserAgent = "Go-http-client/2.0"
 )
 
-type fakeMutex struct {
-	mu     sync.Mutex
-	locked int32
-}
-
-func (m *fakeMutex) Locked() bool {
-	return atomic.LoadInt32(&m.locked) > 0
-}
-
-func (m *fakeMutex) Lock() {
-	atomic.StoreInt32(&m.locked, 1)
-	m.mu.Lock()
-}
-
-func (m *fakeMutex) Unlock() {
-	atomic.StoreInt32(&m.locked, 0)
-	m.mu.Unlock()
-}
-
 // Transport is an HTTP/2 Transport.
 //
 // A Transport internally caches connections to servers. It is safe
@@ -229,7 +210,7 @@ type ClientConn struct {
 	idleTimeout time.Duration // or 0 for never
 	idleTimer   *time.Timer
 
-	mu              fakeMutex  // guards following
+	mu              *tryMutex  // guards following
 	cond            *sync.Cond // hold mu; broadcast on flow/closed changes
 	flow            flow       // our conn-level flow control quota (cs.flow is per stream)
 	inflow          flow       // peer's conn-level flow control
@@ -648,7 +629,8 @@ func (t *Transport) newClientConn(c net.Conn, singleUse bool) (*ClientConn, erro
 		t.vlogf("http2: Transport creating client conn %p to %v", cc, c.RemoteAddr())
 	}
 
-	cc.cond = sync.NewCond(&cc.mu)
+	cc.mu = newTryMutex()
+	cc.cond = sync.NewCond(cc.mu)
 	cc.flow.add(int32(initialWindowSize))
 
 	// TODO: adjust this writer size to account for frame size +
@@ -734,11 +716,9 @@ type clientConnIdleState struct {
 }
 
 func (cc *ClientConn) idleState() clientConnIdleState {
-	if cc.mu.Locked() {
+	if !cc.mu.TryLock() {
 		return clientConnIdleState{false, false}
 	}
-
-	cc.mu.Lock()
 	defer cc.mu.Unlock()
 	return cc.idleStateLocked()
 }
