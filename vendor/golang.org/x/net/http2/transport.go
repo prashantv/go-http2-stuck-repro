@@ -63,8 +63,8 @@ func (m *fakeMutex) Locked() bool {
 }
 
 func (m *fakeMutex) Lock() {
-	atomic.StoreInt32(&m.locked, 1)
 	m.mu.Lock()
+	atomic.StoreInt32(&m.locked, 1)
 }
 
 func (m *fakeMutex) Unlock() {
